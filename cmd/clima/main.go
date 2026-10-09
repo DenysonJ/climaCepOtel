@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -32,16 +33,19 @@ func main() {
 		}
 	}()
 
+	tracer := telemetry.Tracer(config.OtelServiceName)
+
 	httpClient := telemetry.NewHTTPClient()
-	getClima := usecase.NewUseCaseClimaLocation(httpClient, config.WeatherApiKey)
-	getCep := usecase.NewUseCaseLocationCep(httpClient)
-	climaHandler := handler.NewClimaHandler(getClima, getCep)
+	getClima := usecase.NewUseCaseClimaLocation(httpClient, tracer, config.WeatherApiKey)
+	getCep := usecase.NewUseCaseLocationCep(httpClient, tracer)
+	climaHandler := handler.NewClimaHandler(getClima, getCep, tracer)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Get("/clima", climaHandler.Get)
+	r.Handle("/metrics", promhttp.Handler())
 	serverErr := http.ListenAndServe(":"+config.WebServerPort, telemetry.WrapHandler(r, config.OtelServiceName))
 	if serverErr != nil {
 		log.Fatal(serverErr)

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 const VIACEPURL = "http://viacep.com.br/ws/%s/json"
@@ -32,15 +34,20 @@ type CepResponse struct {
 
 type LocationFromCep struct {
 	httpClient *httputils.HttpUtils
+	tracer     trace.Tracer
 }
 
-func NewUseCaseLocationCep(httpClient *http.Client) *LocationFromCep {
+func NewUseCaseLocationCep(httpClient *http.Client, tracer trace.Tracer) *LocationFromCep {
 	return &LocationFromCep{
 		httpClient: httputils.NewHttpUtils(httpClient),
+		tracer:     tracer,
 	}
 }
 
 func (u *LocationFromCep) Execute(ctx context.Context, dto CepInputDTO) (CepOutputDTO, error) {
+	ctx, span := u.tracer.Start(ctx, "Execute LocationFromCep")
+	defer span.End()
+
 	cepVO, cepErr := cep.New(dto.Cep)
 	if cepErr != nil {
 		return CepOutputDTO{}, cepErr

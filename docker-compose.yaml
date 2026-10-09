@@ -11,9 +11,18 @@ services:
     image: prom/prometheus:latest
     restart: always
     volumes:
-      - ./.docker/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - ./.docker/prometheus.yaml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest

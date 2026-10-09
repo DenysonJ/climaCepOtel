@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -32,14 +33,17 @@ func main() {
 		}
 	}()
 
+	tracer := telemetry.Tracer(config.OtelServiceName)
+
 	httpUtils := httputils.NewHttpUtils(telemetry.NewHTTPClient())
-	cepHandler := handler.NewLocationHandler(httpUtils, config.ExternalCallURL)
+	cepHandler := handler.NewLocationHandler(httpUtils, tracer, config.ExternalCallURL)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Post("/cep", cepHandler.Post)
+	r.Handle("/metrics", promhttp.Handler())
 
 	serverErr := http.ListenAndServe(":"+config.WebServerPort, telemetry.WrapHandler(r, config.OtelServiceName))
 	if serverErr != nil {

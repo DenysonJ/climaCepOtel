@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	neturl "net/url"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 const WEATHERAPI = "http://api.weatherapi.com/v1/current.json"
@@ -32,17 +34,22 @@ type WeatherAPIResponse struct {
 
 type UsecaseClimaLocation struct {
 	httpClient    *httputils.HttpUtils
+	tracer        trace.Tracer
 	weatherApiKey string
 }
 
-func NewUseCaseClimaLocation(httpClient *http.Client, apiKey string) *UsecaseClimaLocation {
+func NewUseCaseClimaLocation(httpClient *http.Client, tracer trace.Tracer, apiKey string) *UsecaseClimaLocation {
 	return &UsecaseClimaLocation{
 		httpClient:    httputils.NewHttpUtils(httpClient),
+		tracer:        tracer,
 		weatherApiKey: apiKey,
 	}
 }
 
 func (u *UsecaseClimaLocation) Execute(ctx context.Context, city string) (WeatherOutputDTO, error) {
+	ctx, span := u.tracer.Start(ctx, "Execute Get Clima Location")
+	defer span.End()
+
 	url := WEATHERAPI + "?key=" + u.weatherApiKey + "&q=" + neturl.QueryEscape(city)
 	respWeather, _, doWeatherErr := u.httpClient.GetJson(ctx, url)
 	if doWeatherErr != nil {

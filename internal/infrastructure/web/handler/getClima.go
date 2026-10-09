@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 const DEADLINE = time.Second * 5
@@ -13,12 +15,14 @@ const DEADLINE = time.Second * 5
 type ClimaHandler struct {
 	climaLocation *usecase.UsecaseClimaLocation
 	locationCep   *usecase.LocationFromCep
+	tracer        trace.Tracer
 }
 
-func NewClimaHandler(climaLocation *usecase.UsecaseClimaLocation, locationCep *usecase.LocationFromCep) *ClimaHandler {
+func NewClimaHandler(climaLocation *usecase.UsecaseClimaLocation, locationCep *usecase.LocationFromCep, tracer trace.Tracer) *ClimaHandler {
 	return &ClimaHandler{
 		climaLocation: climaLocation,
 		locationCep:   locationCep,
+		tracer:        tracer,
 	}
 }
 
@@ -29,22 +33,25 @@ func (h *ClimaHandler) Get(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), DEADLINE)
 	defer cancel()
 
+	ctx, span := h.tracer.Start(ctx, "Get Clima Location")
+	defer span.End()
+
 	cep, useCEPErr := h.locationCep.Execute(ctx, dto)
 	if useCEPErr != nil {
-		errorHandler(toAppError(useCEPErr), w)
+		errorHandler(toAppError(useCEPErr), w, span)
 		return
 	}
 
 	weather, useErr := h.climaLocation.Execute(ctx, cep.City)
 	if useErr != nil {
-		errorHandler(toAppError(useErr), w)
+		errorHandler(toAppError(useErr), w, span)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	err := json.NewEncoder(w).Encode(weather)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		errorHandler(toAppError(err), w, span)
 		return
 	}
 }

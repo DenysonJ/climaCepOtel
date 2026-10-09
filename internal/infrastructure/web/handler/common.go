@@ -7,6 +7,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // na borda HTTP (handler/adapter), traduz erro de domínio em AppError
@@ -23,7 +26,7 @@ func toAppError(err error) *apperror.AppError {
 	}
 }
 
-func errorHandler(err error, w http.ResponseWriter) {
+func errorHandler(err error, w http.ResponseWriter, span trace.Span) {
 	status := http.StatusInternalServerError
 	message := "internal server error"
 
@@ -33,5 +36,6 @@ func errorHandler(err error, w http.ResponseWriter) {
 		message = appErr.Error()
 	}
 
+	span.SetStatus(codes.Error, message)
 	http.Error(w, message, status)
 }

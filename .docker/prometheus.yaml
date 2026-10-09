@@ -4,3 +4,16 @@ scrape_configs:
     static_configs:
       - targets: ['otel-collector:8889']
       - targets: ['otel-collector:8888']
+
+  - job_name: 'goapp'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['clima:8181', 'cep:8080']
+    relabel_configs:
+      # A dashboard "Go Metrics" é feita para Kubernetes e filtra por
+      # kubernetes_namespace / kubernetes_pod_name. Como aqui as apps são
+      # raspadas direto (sem k8s), sintetizamos esses labels a partir do alvo.
+      - target_label: kubernetes_namespace
+        replacement: goapp
+      - source_labels: [__address__]
+        target_label: kubernetes_pod_name
