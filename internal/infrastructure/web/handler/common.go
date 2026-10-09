@@ -5,7 +5,9 @@ import (
 	"climaCepOtel/internal/usecase"
 	"climaCepOtel/pkgs/apperror"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"go.opentelemetry.io/otel/codes"
@@ -14,6 +16,9 @@ import (
 
 // na borda HTTP (handler/adapter), traduz erro de domínio em AppError
 func toAppError(err error) *apperror.AppError {
+	var typeErr *json.UnmarshalTypeError
+	var syntaxErr *json.SyntaxError
+
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		return &apperror.AppError{Code: http.StatusRequestTimeout, Message: "request timeout", Err: err}
@@ -21,6 +26,8 @@ func toAppError(err error) *apperror.AppError {
 		return apperror.NewUnprocessable(err)
 	case errors.Is(err, usecase.ErrorCepNotFound):
 		return apperror.NewNotFound(err)
+	case errors.As(err, &typeErr), errors.As(err, &syntaxErr), errors.Is(err, io.EOF):
+		return apperror.NewUnprocessable(cep.ErrorInvalidCep)
 	default:
 		return apperror.NewInternal(err)
 	}

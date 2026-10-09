@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel"
 )
 
 func TestLocationHandler_Post(t *testing.T) {
 	const externalURL = "http://clima:8181"
-	const weatherJSON = `{"city":"Sao Paulo","temp_C":"28.50","temp_F":"83.30","temp_K":"301.50"}`
+	const weatherJSON = `{"city":"Sao Paulo","temp_C":28.5,"temp_F":83.3,"temp_K":301.5}`
 
 	notCalled := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return nil, errors.New("should not be called")
@@ -60,7 +61,7 @@ func TestLocationHandler_Post(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &http.Client{Transport: tt.transport}
-			h := NewLocationHandler(httputils.NewHttpUtils(client), externalURL)
+			h := NewLocationHandler(httputils.NewHttpUtils(client), otel.Tracer("test"), externalURL)
 			req := httptest.NewRequest(http.MethodPost, "/cep", strings.NewReader(tt.body))
 			rec := httptest.NewRecorder()
 

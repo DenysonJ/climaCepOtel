@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 )
 
 type roundTripFunc func(req *http.Request) (*http.Response, error)
@@ -54,9 +55,9 @@ func TestHandler_Get(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantBody: &usecase.WeatherOutputDTO{
 				City:           "Sao Paulo",
-				TempCelsius:    "28.50",
-				TempFahrenheit: "83.30",
-				TempKelvin:     "301.50",
+				TempCelsius:    28.5,
+				TempFahrenheit: 83.3,
+				TempKelvin:     301.5,
 			},
 		},
 		{
@@ -95,9 +96,10 @@ func TestHandler_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &http.Client{Transport: tt.transport}
-			getClima := usecase.NewUseCaseClimaLocation(client, "fake-key")
-			getCep := usecase.NewUseCaseLocationCep(client)
-			h := NewClimaHandler(getClima, getCep)
+			tracer := otel.Tracer("test")
+			getClima := usecase.NewUseCaseClimaLocation(client, tracer, "fake-key")
+			getCep := usecase.NewUseCaseLocationCep(client, tracer)
+			h := NewClimaHandler(getClima, getCep, tracer)
 			req := httptest.NewRequest(http.MethodGet, "/cep?"+tt.query, nil)
 			rec := httptest.NewRecorder()
 
@@ -115,7 +117,10 @@ func TestHandler_Get(t *testing.T) {
 			assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
 			var got usecase.WeatherOutputDTO
 			require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
-			assert.Equal(t, *tt.wantBody, got)
+			assert.Equal(t, tt.wantBody.City, got.City)
+			assert.InDelta(t, tt.wantBody.TempCelsius, got.TempCelsius, 0.001)
+			assert.InDelta(t, tt.wantBody.TempFahrenheit, got.TempFahrenheit, 0.001)
+			assert.InDelta(t, tt.wantBody.TempKelvin, got.TempKelvin, 0.001)
 		})
 	}
 }

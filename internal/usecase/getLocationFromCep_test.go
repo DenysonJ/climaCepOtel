@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 )
 
 type roundTripFunc func(req *http.Request) (*http.Response, error)
@@ -87,7 +88,7 @@ func TestLocationFromCep_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc := NewUseCaseLocationCep(&http.Client{Transport: tt.transport})
+			uc := NewUseCaseLocationCep(&http.Client{Transport: tt.transport}, otel.Tracer("test"))
 
 			got, err := uc.Execute(context.Background(), CepInputDTO{Cep: tt.cep})
 

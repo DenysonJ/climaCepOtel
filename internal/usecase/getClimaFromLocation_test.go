@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 )
 
 func TestUsecaseClimaLocation_Execute(t *testing.T) {
@@ -26,9 +27,9 @@ func TestUsecaseClimaLocation_Execute(t *testing.T) {
 			},
 			want: WeatherOutputDTO{
 				City:           "Sao Paulo",
-				TempCelsius:    "28.50",
-				TempFahrenheit: "83.30",
-				TempKelvin:     "301.50",
+				TempCelsius:    28.5,
+				TempFahrenheit: 83.3,
+				TempKelvin:     301.5,
 			},
 			wantErr: false,
 		},
@@ -40,9 +41,9 @@ func TestUsecaseClimaLocation_Execute(t *testing.T) {
 			},
 			want: WeatherOutputDTO{
 				City:           "Curitiba",
-				TempCelsius:    "-5.00",
-				TempFahrenheit: "23.00",
-				TempKelvin:     "268.00",
+				TempCelsius:    -5,
+				TempFahrenheit: 23,
+				TempKelvin:     268,
 			},
 			wantErr: false,
 		},
@@ -66,7 +67,7 @@ func TestUsecaseClimaLocation_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc := NewUseCaseClimaLocation(&http.Client{Transport: tt.transport}, "fake-key")
+			uc := NewUseCaseClimaLocation(&http.Client{Transport: tt.transport}, otel.Tracer("test"), "fake-key")
 
 			got, err := uc.Execute(context.Background(), tt.city)
 
@@ -77,7 +78,10 @@ func TestUsecaseClimaLocation_Execute(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want.City, got.City)
+			assert.InDelta(t, tt.want.TempCelsius, got.TempCelsius, 0.001)
+			assert.InDelta(t, tt.want.TempFahrenheit, got.TempFahrenheit, 0.001)
+			assert.InDelta(t, tt.want.TempKelvin, got.TempKelvin, 0.001)
 		})
 	}
 }
