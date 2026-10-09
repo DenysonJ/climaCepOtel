@@ -4,7 +4,6 @@ import (
 	"climaCepOtel/pkgs/httputils"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	neturl "net/url"
@@ -19,10 +18,10 @@ type CityInputDTO struct {
 }
 
 type WeatherOutputDTO struct {
-	City           string `json:"city"`
-	TempCelsius    string `json:"temp_C"`
-	TempFahrenheit string `json:"temp_F"`
-	TempKelvin     string `json:"temp_K"`
+	City           string  `json:"city"`
+	TempCelsius    float64 `json:"temp_C"`
+	TempFahrenheit float64 `json:"temp_F"`
+	TempKelvin     float64 `json:"temp_K"`
 }
 
 type WeatherAPIResponse struct {
@@ -66,9 +65,9 @@ func (u *UsecaseClimaLocation) Execute(ctx context.Context, city string) (Weathe
 
 	return WeatherOutputDTO{
 		City:           city,
-		TempCelsius:    fmt.Sprintf("%.2f", currentCelsius),
-		TempFahrenheit: fmt.Sprintf("%.2f", convertCelsiusToFahrenheit(currentCelsius)),
-		TempKelvin:     fmt.Sprintf("%.2f", convertCelsiusToKelvin(currentCelsius)),
+		TempCelsius:    currentCelsius,
+		TempFahrenheit: convertCelsiusToFahrenheit(currentCelsius),
+		TempKelvin:     convertCelsiusToKelvin(currentCelsius),
 	}, nil
 }
 
