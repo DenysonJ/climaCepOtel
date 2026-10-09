@@ -44,7 +44,7 @@ func NewUseCaseClimaLocation(httpClient *http.Client, apiKey string) *UsecaseCli
 
 func (u *UsecaseClimaLocation) Execute(ctx context.Context, city string) (WeatherOutputDTO, error) {
 	url := WEATHERAPI + "?key=" + u.weatherApiKey + "&q=" + neturl.QueryEscape(city)
-	respWeather, doWeatherErr := u.httpClient.GetJson(ctx, url)
+	respWeather, _, doWeatherErr := u.httpClient.GetJson(ctx, url)
 	if doWeatherErr != nil {
 		return WeatherOutputDTO{}, doWeatherErr
 	}

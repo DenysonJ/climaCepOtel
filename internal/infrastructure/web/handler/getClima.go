@@ -31,13 +31,13 @@ func (h *ClimaHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	cep, useCEPErr := h.locationCep.Execute(ctx, dto)
 	if useCEPErr != nil {
-		errorHandler(useCEPErr, w)
+		errorHandler(toAppError(useCEPErr), w)
 		return
 	}
 
 	weather, useErr := h.climaLocation.Execute(ctx, cep.City)
 	if useErr != nil {
-		errorHandler(useErr, w)
+		errorHandler(toAppError(useErr), w)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

@@ -5,12 +5,15 @@ import (
 	"climaCepOtel/pkgs/httputils"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 )
 
 const VIACEPURL = "http://viacep.com.br/ws/%s/json"
+
+var ErrorCepNotFound = errors.New("can not find zipcode")
 
 type CepInputDTO struct {
 	Cep string
@@ -24,6 +27,7 @@ type CepOutputDTO struct {
 type CepResponse struct {
 	Cep        string `json:"cep"`
 	Localidade string `json:"localidade"`
+	Error      string `json:"erro"`
 }
 
 type LocationFromCep struct {
@@ -42,7 +46,7 @@ func (u *LocationFromCep) Execute(ctx context.Context, dto CepInputDTO) (CepOutp
 		return CepOutputDTO{}, cepErr
 	}
 
-	respCEP, doCEPErr := u.httpClient.GetJson(ctx, fmt.Sprintf(VIACEPURL, cepVO.Value))
+	respCEP, _, doCEPErr := u.httpClient.GetJson(ctx, fmt.Sprintf(VIACEPURL, cepVO.Value))
 	if doCEPErr != nil {
 		return CepOutputDTO{}, doCEPErr
 	}
@@ -51,6 +55,10 @@ func (u *LocationFromCep) Execute(ctx context.Context, dto CepInputDTO) (CepOutp
 	if unmarshalErr := json.Unmarshal(respCEP, &cepJson); unmarshalErr != nil {
 		log.Println("unmarshalling response body CEP: %w", unmarshalErr)
 		return CepOutputDTO{}, unmarshalErr
+	}
+
+	if cepJson.Error != "" {
+		return CepOutputDTO{}, ErrorCepNotFound
 	}
 
 	return CepOutputDTO{

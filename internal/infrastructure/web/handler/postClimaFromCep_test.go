@@ -1,106 +1,82 @@
 package handler
 
 import (
-	"climaCepOtel/internal/usecase"
-	"encoding/json"
+	"climaCepOtel/pkgs/httputils"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-type roundTripFunc func(req *http.Request) (*http.Response, error)
+func TestLocationHandler_Post(t *testing.T) {
+	const externalURL = "http://clima:8181"
+	const weatherJSON = `{"city":"Sao Paulo","temp_C":"28.50","temp_F":"83.30","temp_K":"301.50"}`
 
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
-}
-
-func newResponse(status int, body string) *http.Response {
-	return &http.Response{
-		StatusCode: status,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Header:     make(http.Header),
-	}
-}
-
-func TestHandler_Get(t *testing.T) {
-	success := roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch req.URL.Host {
-		case "viacep.com.br":
-			return newResponse(http.StatusOK, `{"cep":"12345-678","localidade":"Sao Paulo"}`), nil
-		case "api.weatherapi.com":
-			return newResponse(http.StatusOK, `{"current":{"temp_c":28.5}}`), nil
-		default:
-			return nil, errors.New("unexpected host: " + req.URL.Host)
-		}
+	notCalled := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return nil, errors.New("should not be called")
 	})
 
 	tests := []struct {
 		name       string
-		query      string
+		body       string
 		transport  roundTripFunc
 		wantStatus int
-		wantBody   *usecase.WeatherOutputDTO
+		wantBody   string
 	}{
 		{
-			name:       "success returns weather json",
-			query:      "cep=12345678",
-			transport:  success,
+			name: "valid cep returns weather json from clima service",
+			body: `{"cep":"12345678"}`,
+			transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return newResponse(http.StatusOK, weatherJSON), nil
+			}),
 			wantStatus: http.StatusOK,
-			wantBody: &usecase.WeatherOutputDTO{
-				City:           "Sao Paulo",
-				TempCelsius:    "28.50",
-				TempFahrenheit: "83.30",
-				TempKelvin:     "301.50",
-			},
+			wantBody:   weatherJSON,
 		},
 		{
-			name:  "invalid cep returns Unprocessable Entity",
-			query: "cep=invalid",
-			transport: func(req *http.Request) (*http.Response, error) {
-				return nil, errors.New("should not be called")
-			},
+			name:       "invalid cep returns unprocessable entity",
+			body:       `{"cep":"invalid"}`,
+			transport:  notCalled,
 			wantStatus: http.StatusUnprocessableEntity,
 		},
 		{
-			name:  "missing cep returns Unprocessable Entity",
-			query: "",
-			transport: func(req *http.Request) (*http.Response, error) {
-				return nil, errors.New("should not be called")
-			},
-			wantStatus: http.StatusUnprocessableEntity,
+			name:       "malformed body returns internal server error",
+			body:       `not a json`,
+			transport:  notCalled,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name: "clima service error returns internal server error",
+			body: `{"cep":"12345678"}`,
+			transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return nil, errors.New("clima down")
+			}),
+			wantStatus: http.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &http.Client{Transport: tt.transport}
-			getClima := usecase.NewUseCaseClimaLocation(client, "fake-key")
-			getCep := usecase.NewUseCaseLocationCep(client)
-			h := NewClimaHandler(getClima, getCep)
-			req := httptest.NewRequest(http.MethodGet, "/cep?"+tt.query, nil)
+			h := NewLocationHandler(httputils.NewHttpUtils(client), externalURL)
+			req := httptest.NewRequest(http.MethodPost, "/cep", strings.NewReader(tt.body))
 			rec := httptest.NewRecorder()
 
-			h.Get(rec, req)
+			h.Post(rec, req)
 
 			res := rec.Result()
 			defer res.Body.Close()
 
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
 
-			if tt.wantBody == nil {
+			if tt.wantBody == "" {
 				return
 			}
 
 			assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
-			var got usecase.WeatherOutputDTO
-			require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
-			assert.Equal(t, *tt.wantBody, got)
+			assert.JSONEq(t, tt.wantBody, rec.Body.String())
 		})
 	}
 }

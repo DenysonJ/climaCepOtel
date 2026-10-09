@@ -37,6 +37,7 @@ func TestLocationFromCep_Execute(t *testing.T) {
 		transport roundTripFunc
 		want      CepOutputDTO
 		wantErr   bool
+		errIs     error
 	}{
 		{
 			name:      "success returns cep and city",
@@ -47,6 +48,16 @@ func TestLocationFromCep_Execute(t *testing.T) {
 				City: "Sao Paulo",
 			},
 			wantErr: false,
+		},
+		{
+			name: "cep not found returns ErrorCepNotFound",
+			cep:  "99999999",
+			transport: func(req *http.Request) (*http.Response, error) {
+				// resposta real do ViaCEP para CEP inexistente (HTTP 200)
+				return newResponse(http.StatusOK, `{"erro":"true"}`), nil
+			},
+			wantErr: true,
+			errIs:   ErrorCepNotFound,
 		},
 		{
 			name: "invalid cep does not call viacep",
@@ -82,6 +93,9 @@ func TestLocationFromCep_Execute(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+				if tt.errIs != nil {
+					assert.ErrorIs(t, err, tt.errIs)
+				}
 				assert.Equal(t, CepOutputDTO{}, got)
 				return
 			}

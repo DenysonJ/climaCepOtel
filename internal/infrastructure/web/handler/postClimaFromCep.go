@@ -6,7 +6,6 @@ import (
 	"climaCepOtel/pkgs/httputils"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -31,39 +30,25 @@ func (h *LocationHandler) Post(w http.ResponseWriter, r *http.Request) {
 	var dto usecase.CepInputDTO
 	readErr := json.NewDecoder(r.Body).Decode(&dto)
 	if readErr != nil {
-		errorHandler(readErr, w)
+		errorHandler(toAppError(readErr), w)
 		return
 	}
 
 	cepVO, cepErr := cep.New(dto.Cep)
 	if cepErr != nil {
-		errorHandler(cepErr, w)
+		errorHandler(toAppError(cepErr), w)
 		return
 	}
 
-	weather, weatherErr := h.httpClient.GetJson(ctx, fmt.Sprintf("%s/clima?cep=%s", h.externalCallURL, cepVO.Value))
+	weather, status, weatherErr := h.httpClient.GetJson(ctx, fmt.Sprintf("%s/clima?cep=%s", h.externalCallURL, cepVO.Value))
 	if weatherErr != nil {
-		errorHandler(weatherErr, w)
+		errorHandler(toAppError(weatherErr), w)
 		return
 	}
-	// weather ja e um JSON ([]byte) vindo do microsservico clima;
-	// repassa cru para nao re-encodar (json.Encode de []byte viraria base64).
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(status)
 	if _, writeErr := w.Write(weather); writeErr != nil {
 		log.Printf("writing response: %v", writeErr)
 	}
-}
-
-func errorHandler(err error, w http.ResponseWriter) {
-	if errors.Is(err, context.DeadlineExceeded) {
-		http.Error(w, err.Error(), http.StatusRequestTimeout)
-		return
-	}
-	if errors.Is(err, cep.ErrorInvalidCep) {
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
-		return
-	}
-
-	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
